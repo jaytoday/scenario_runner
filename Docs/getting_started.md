@@ -22,10 +22,10 @@ Python 3.5. Depending on your Python version, execute:
 
 #Python 2.x
 sudo apt remove python-networkx #if installed, remove old version of networkx
-pip2 install --user py_trees==0.8.3 networkx==2.2 psutil shapely xmlschema
+pip2 install --user -r requirements.txt
 #Python 3.x
 sudo apt remove python3-networkx #if installed, remove old version of networkx
-pip3 install --user py_trees==0.8.3 networkx==2.2 psutil shapely xmlschema
+pip3 install --user -r requirements.txt
 ```
 Note: py-trees newer than v0.8 is *NOT* supported.
 
@@ -82,10 +82,44 @@ A list of supported scenarios is provided in
 different scenarios may take place in different CARLA towns. This has to be
 respected when launching the CARLA server.
 
-## Running scenarios using the OpenScenario format
-To run a scenario, which is based on the OpenScenario format, please run the scenario runner as follows:
+## Running scenarios using the OpenSCENARIO format
+To run a scenario, which is based on the OpenSCENARIO format, please run the ScenarioRunner as follows:
 ```
 python scenario_runner.py --openscenario <path/to/xosc-file>
 ```
-Please note that the OpenScenario support and the OpenScenario format itself are still work in progress.
-More information you can find in [OpenScenario support](openscenario_support.md)
+Please note that the OpenSCENARIO support and the OpenSCENARIO format itself are still work in progress.
+More information you can find in [OpenSCENARIO support](openscenario_support.md)
+
+## Running scenarios using the OpenSCENARIO 2.0 format
+To run a scenario, which is based on the OpenSCENARIO 2.0 format, please run the ScenarioRunner as follows:
+```
+python scenario_runner.py --openscenario2 <path/to/osc-file>
+```
+
+To control the ego vehicle within the scenario or observe it, open another terminal and run:
+```
+python manual_control.py -a --rolename=ego_vehicle
+```
+
+For more information about how to run a OpenSCENARIO 2.0 scenario, please refer to [README_OpenSCENARIO_2.0](README_OpenSCENARIO_2.0.md)
+
+### Running scenarios using the OpenSCENARIO format with Global ParameterDeclaration overwrite
+```
+python scenario_runner.py --openscenario <path/to/xosc-file> --openscenarioparams 'param1: value1, param2: value2'
+```
+
+## Running route-based scenario (similar to the CARLA AD Challenge)
+To run a route-based scenario, please run the ScenarioRunner as follows:
+```
+python scenario_runner.py --route <path/to/route-file> <path/to/scenario_sample_file> [route id] --agent <path/to/agent_file>
+```
+Example:
+```
+python scenario_runner.py /scenario_runner/srunner/routes_debug.xml /scenario_runner/srunner/data/all_towns_traffic_scenarios1_3_4.json 0 --agent srunner/autoagents/npc_agent.py
+```
+
+If no route id is provided, all routes within the given file will be executed.
+
+
+By doing so, ScenarioRunner will match the scenarios to the route, and they'll activate when the ego vehicle is nearby. However, routes need an autonomous agent to control the ego vehicle. Several examples are provided in srunner/autoagents/. For more information about agents, please have a look into the [agent documentation](agent_evaluation.md)
+

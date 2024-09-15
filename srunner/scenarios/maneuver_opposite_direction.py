@@ -11,18 +11,22 @@ weather conditions, at a non-junction and encroaches into another
 vehicle traveling in the opposite direction.
 """
 
-from six.moves.queue import Queue   # pylint: disable=relative-import
+from six.moves.queue import Queue   # pylint: disable=relative-import,bad-option-value
 
+import math  # pylint: disable=wrong-import-order
 import py_trees
+import carla
 
-from srunner.scenariomanager.atomic_scenario_behavior import *
-from srunner.scenariomanager.atomic_scenario_criteria import *
-from srunner.scenarios.basic_scenario import *
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
+                                                                      ActorDestroy,
+                                                                      ActorSource,
+                                                                      ActorSink,
+                                                                      WaypointFollower)
+from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance
+from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.scenario_helper import get_waypoint_in_distance
-
-MANEUVER_OPPOSITE_DIRECTION = [
-    "ManeuverOppositeDirection"
-]
 
 
 class ManeuverOppositeDirection(BasicScenario):
@@ -32,8 +36,6 @@ class ManeuverOppositeDirection(BasicScenario):
 
     This is a single ego vehicle scenario
     """
-
-    category = "ManeuverOppositeDirection"
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  obstacle_type='barrier', timeout=120):
@@ -53,7 +55,7 @@ class ManeuverOppositeDirection(BasicScenario):
         self._source_transform = None
         self._sink_location = None
         self._blackboard_queue_name = 'ManeuverOppositeDirection/actor_flow_queue'
-        self._queue = Blackboard().set(self._blackboard_queue_name, Queue())
+        self._queue = py_trees.blackboard.Blackboard().set(self._blackboard_queue_name, Queue())
         self._obstacle_type = obstacle_type
         self._first_actor_transform = None
         self._second_actor_transform = None
@@ -92,11 +94,11 @@ class ManeuverOppositeDirection(BasicScenario):
                 0.50 * second_prop_waypoint.lane_width * math.sin(math.radians(position_yaw)))
             second_prop_transform = carla.Transform(
                 second_prop_waypoint.transform.location + offset_location, first_actor_transform.rotation)
-            second_prop_actor = CarlaActorPool.request_new_actor(first_actor_model, second_prop_transform)
+            second_prop_actor = CarlaDataProvider.request_new_actor(first_actor_model, second_prop_transform)
             second_prop_actor.set_simulate_physics(True)
-        first_actor = CarlaActorPool.request_new_actor(first_actor_model, first_actor_transform)
+        first_actor = CarlaDataProvider.request_new_actor(first_actor_model, first_actor_transform)
         first_actor.set_simulate_physics(True)
-        second_actor = CarlaActorPool.request_new_actor('vehicle.audi.tt', second_actor_waypoint.transform)
+        second_actor = CarlaDataProvider.request_new_actor('vehicle.audi.tt', second_actor_waypoint.transform)
 
         self.other_actors.append(first_actor)
         self.other_actors.append(second_actor)
@@ -123,9 +125,9 @@ class ManeuverOppositeDirection(BasicScenario):
 
         # Leaf nodes
         actor_source = ActorSource(
-            self._world, ['vehicle.audi.tt', 'vehicle.tesla.model3', 'vehicle.nissan.micra'],
+            ['vehicle.audi.tt', 'vehicle.tesla.model3', 'vehicle.nissan.micra'],
             self._source_transform, self._source_gap, self._blackboard_queue_name)
-        actor_sink = ActorSink(self._world, self._sink_location, 10)
+        actor_sink = ActorSink(self._sink_location, 10)
         ego_drive_distance = DriveDistance(self.ego_vehicles[0], self._ego_vehicle_drive_distance)
         waypoint_follower = WaypointFollower(
             self.other_actors[1], self._opposite_speed,

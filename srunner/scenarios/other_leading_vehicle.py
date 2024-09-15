@@ -15,21 +15,19 @@ collision and follow the leading car in other lane. The scenario ends
 either via a timeout, or if the ego vehicle drives some distance.
 """
 
-from __future__ import print_function
-
 import py_trees
 
 import carla
 
-from srunner.scenariomanager.atomic_scenario_behavior import *
-from srunner.scenariomanager.atomic_scenario_criteria import *
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-from srunner.scenarios.basic_scenario import *
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
+                                                                      WaypointFollower,
+                                                                      ActorDestroy)
+from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (InTriggerDistanceToVehicle,
+                                                                               DriveDistance)
+from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.scenario_helper import get_waypoint_in_distance
-
-OTHER_LEADING_VEHICLE_SCENARIOS = [
-    "OtherLeadingVehicle"
-]
 
 
 class OtherLeadingVehicle(BasicScenario):
@@ -41,7 +39,6 @@ class OtherLeadingVehicle(BasicScenario):
 
     This is a single ego vehicle scenario
     """
-    category = "OtherLeadingVehicle"
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
                  timeout=80):
@@ -53,8 +50,8 @@ class OtherLeadingVehicle(BasicScenario):
         self._first_vehicle_location = 35
         self._second_vehicle_location = self._first_vehicle_location + 1
         self._ego_vehicle_drive_distance = self._first_vehicle_location * 4
-        self._first_vehicle_speed = 55
-        self._second_vehicle_speed = 45
+        self._first_vehicle_speed = 55 / 3.6
+        self._second_vehicle_speed = 45 / 3.6
         self._reference_waypoint = self._map.get_waypoint(config.trigger_points[0].location)
         self._other_actor_max_brake = 1.0
         self._first_actor_transform = None
@@ -82,8 +79,8 @@ class OtherLeadingVehicle(BasicScenario):
         second_vehicle_transform = carla.Transform(second_vehicle_waypoint.transform.location,
                                                    second_vehicle_waypoint.transform.rotation)
 
-        first_vehicle = CarlaActorPool.request_new_actor('vehicle.nissan.patrol', first_vehicle_transform)
-        second_vehicle = CarlaActorPool.request_new_actor('vehicle.audi.tt', second_vehicle_transform)
+        first_vehicle = CarlaDataProvider.request_new_actor('vehicle.nissan.patrol', first_vehicle_transform)
+        second_vehicle = CarlaDataProvider.request_new_actor('vehicle.audi.tt', second_vehicle_transform)
 
         self.other_actors.append(first_vehicle)
         self.other_actors.append(second_vehicle)

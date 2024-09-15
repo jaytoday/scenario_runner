@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2018-2019 Intel Corporation
+# Copyright (c) 2018-2020 Intel Corporation
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
@@ -22,16 +22,20 @@ import py_trees
 
 import carla
 
-from srunner.scenariomanager.atomic_scenario_behavior import *
-from srunner.scenariomanager.atomic_scenario_criteria import *
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
+                                                                      ActorDestroy,
+                                                                      KeepVelocity,
+                                                                      StopVehicle,
+                                                                      WaypointFollower)
+from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (InTriggerDistanceToVehicle,
+                                                                               InTriggerDistanceToNextIntersection,
+                                                                               DriveDistance,
+                                                                               StandStill)
 from srunner.scenariomanager.timer import TimeOut
-from srunner.scenarios.basic_scenario import *
-from srunner.tools.scenario_helper import *
-
-FOLLOW_LEADING_VEHICLE_SCENARIOS = [
-    "FollowLeadingVehicle",
-    "FollowLeadingVehicleWithObstacle"
-]
+from srunner.scenarios.basic_scenario import BasicScenario
+from srunner.tools.scenario_helper import get_waypoint_in_distance
 
 
 class FollowLeadingVehicle(BasicScenario):
@@ -42,7 +46,6 @@ class FollowLeadingVehicle(BasicScenario):
 
     This is a single ego vehicle scenario
     """
-    category = "FollowLeadingVehicle"
 
     timeout = 120            # Timeout of scenario in seconds
 
@@ -85,19 +88,10 @@ class FollowLeadingVehicle(BasicScenario):
         """
         Custom initialization
         """
-
-        first_vehicle_waypoint, _ = get_waypoint_in_distance(self._reference_waypoint, self._first_vehicle_location)
-        self._other_actor_transform = carla.Transform(
-            carla.Location(first_vehicle_waypoint.transform.location.x,
-                           first_vehicle_waypoint.transform.location.y,
-                           first_vehicle_waypoint.transform.location.z + 1),
-            first_vehicle_waypoint.transform.rotation)
-        first_vehicle_transform = carla.Transform(
-            carla.Location(self._other_actor_transform.location.x,
-                           self._other_actor_transform.location.y,
-                           self._other_actor_transform.location.z - 500),
-            self._other_actor_transform.rotation)
-        first_vehicle = CarlaActorPool.request_new_actor('vehicle.nissan.patrol', first_vehicle_transform)
+        waypoint, _ = get_waypoint_in_distance(self._reference_waypoint, self._first_vehicle_location)
+        transform = waypoint.transform
+        transform.location.z += 0.5
+        first_vehicle = CarlaDataProvider.request_new_actor('vehicle.nissan.patrol', transform)
         self.other_actors.append(first_vehicle)
 
     def _create_behavior(self):
@@ -110,12 +104,7 @@ class FollowLeadingVehicle(BasicScenario):
         If this does not happen within 60 seconds, a timeout stops the scenario
         """
 
-        # to avoid the other actor blocking traffic, it was spawed elsewhere
-        # reset its pose to the required one
-        start_transform = ActorTransformSetter(self.other_actors[0], self._other_actor_transform)
-
         # let the other actor drive until next intersection
-        # @todo: We should add some feedback mechanism to respond to ego_vehicle behavior
         driving_to_next_intersection = py_trees.composites.Parallel(
             "DrivingTowardsIntersection",
             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
@@ -134,13 +123,12 @@ class FollowLeadingVehicle(BasicScenario):
                                                         self.ego_vehicles[0],
                                                         distance=20,
                                                         name="FinalDistance")
-        endcondition_part2 = StandStill(self.ego_vehicles[0], name="StandStill")
+        endcondition_part2 = StandStill(self.ego_vehicles[0], name="StandStill", duration=1)
         endcondition.add_child(endcondition_part1)
         endcondition.add_child(endcondition_part2)
 
         # Build behavior tree
         sequence = py_trees.composites.Sequence("Sequence Behavior")
-        sequence.add_child(start_transform)
         sequence.add_child(driving_to_next_intersection)
         sequence.add_child(stop)
         sequence.add_child(endcondition)
@@ -176,7 +164,6 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
 
     This is a single ego vehicle scenario
     """
-    category = "FollowLeadingVehicle"
 
     timeout = 120            # Timeout of scenario in seconds
 
@@ -234,10 +221,13 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
             carla.Rotation(second_actor_waypoint.transform.rotation.pitch, yaw_1,
                            second_actor_waypoint.transform.rotation.roll))
 
-        first_actor = CarlaActorPool.request_new_actor('vehicle.nissan.patrol', first_actor_transform)
-        second_actor = CarlaActorPool.request_new_actor('vehicle.diamondback.century',
-                                                        second_actor_transform)
+        first_actor = CarlaDataProvider.request_new_actor(
+            'vehicle.nissan.patrol', first_actor_transform)
+        second_actor = CarlaDataProvider.request_new_actor(
+            'vehicle.diamondback.century', second_actor_transform)
 
+        first_actor.set_simulate_physics(enabled=False)
+        second_actor.set_simulate_physics(enabled=False)
         self.other_actors.append(first_actor)
         self.other_actors.append(second_actor)
 
@@ -279,7 +269,7 @@ class FollowLeadingVehicleWithObstacle(BasicScenario):
                                                         self.ego_vehicles[0],
                                                         distance=20,
                                                         name="FinalDistance")
-        endcondition_part2 = StandStill(self.ego_vehicles[0], name="FinalSpeed")
+        endcondition_part2 = StandStill(self.ego_vehicles[0], name="FinalSpeed", duration=1)
         endcondition.add_child(endcondition_part1)
         endcondition.add_child(endcondition_part2)
 
